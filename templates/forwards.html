@@ -5,7 +5,7 @@
     <h2>Add Forward</h2>
     <form method="POST" action="/forwards/add" class="form-inline">
         <label>Bridge
-            <select name="bridge" required>
+            <select id="bridgeSelect" name="bridge" required>
                 {{range .Bridges}}
                 <option value="{{.Name}}">{{.Name}} ({{.Subnet}})</option>
                 {{end}}
@@ -19,24 +19,64 @@
             </select>
         </label>
         <label>External Port
-            <input type="number" name="ext_port" min="1" max="65535" required>
+            <input type="number" name="ext_port" min="1" max="65535" list="popular-ports" required>
         </label>
         <label>Internal IP
-            <input type="text" name="int_ip" placeholder="10.10.10.101" list="suggest-int-ip" pattern="(?:[0-9]{1,3}[.]){3}[0-9]{1,3}" title="IPv4 address" required>
+            <input type="text" id="internalIP" name="int_ip" placeholder="select bridge to get suggestions" list="" pattern="(?:[0-9]{1,3}[.]){3}[0-9]{1,3}" title="IPv4 address" required>
         </label>
         <label>Internal Port
-            <input type="number" name="int_port" min="1" max="65535" required>
+            <input type="number" name="int_port" min="1" max="65535" list="popular-ports" required>
         </label>
         <label>Comment
             <input type="text" name="comment" placeholder="optional">
         </label>
         <button type="submit">Add</button>
     </form>
-    <datalist id="suggest-int-ip">
-        <option value="10.10.10.101">
-        <option value="10.10.10.102">
-        <option value="192.168.10.101">
+    <datalist id="popular-ports">
+        <option value="22" label="SSH">
+        <option value="80" label="HTTP">
+        <option value="443" label="HTTPS">
+        <option value="53" label="DNS">
+        <option value="3389" label="RDP">
+        <option value="5900" label="VNC">
+        <option value="8006" label="Proxmox UI">
+        <option value="8080" label="HTTP-alt">
+        <option value="8443" label="HTTPS-alt">
+        <option value="25565" label="Minecraft">
+        <option value="27017" label="MongoDB">
+        <option value="3306" label="MySQL">
+        <option value="5432" label="PostgreSQL">
+        <option value="6379" label="Redis">
     </datalist>
+
+    {{range .BridgeIPLists}}
+    <datalist id="intip_{{.Bridge}}">
+        {{range .Options}}
+        <option value="{{.IP}}" label="{{.Label}}">
+        {{end}}
+    </datalist>
+    {{end}}
+
+    <script>
+        (function() {
+            var bridgeSel = document.getElementById('bridgeSelect');
+            var ipInput = document.getElementById('internalIP');
+            if (!bridgeSel || !ipInput) return;
+
+            function setList() {
+                var b = bridgeSel.value || '';
+                if (!b) {
+                    ipInput.setAttribute('list', '');
+                    return;
+                }
+                ipInput.setAttribute('list', 'intip_' + b);
+                ipInput.placeholder = 'IP in ' + b;
+            }
+
+            bridgeSel.addEventListener('change', setList);
+            setList();
+        })();
+    </script>
 </section>
 
 <section>

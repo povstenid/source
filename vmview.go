@@ -41,6 +41,16 @@ type BridgeUsedIPs struct {
 	IPs    []UsedIP
 }
 
+type BridgeIPOption struct {
+	IP    string
+	Label string
+}
+
+type BridgeIPList struct {
+	Bridge  string
+	Options []BridgeIPOption
+}
+
 var netKeyRe = regexp.MustCompile(`^net[0-9]+$`)
 
 func normalizeMAC(s string) string {
@@ -158,7 +168,7 @@ func (app *App) buildBridgeNameOptions(proxmoxBridges []BridgeView) []string {
 	return names
 }
 
-func (app *App) buildVMViews(vms []VM, leases []Lease) []VMView {
+func buildVMViews(px *ProxmoxClient, vms []VM, leases []Lease) []VMView {
 	leaseByMAC := make(map[string]Lease, len(leases))
 	for _, l := range leases {
 		m := normalizeMAC(l.MAC)
@@ -172,7 +182,7 @@ func (app *App) buildVMViews(vms []VM, leases []Lease) []VMView {
 	for _, vm := range vms {
 		view := VMView{VMID: vm.VMID, Name: vm.Name, Type: vm.Type, Status: vm.Status}
 
-		cfg, err := app.proxmox.GetVMConfig(vm.Type, vm.VMID)
+		cfg, err := px.GetVMConfig(vm.Type, vm.VMID)
 		if err != nil {
 			log.Printf("WARN: failed to get VM config %s/%d: %v", vm.Type, vm.VMID, err)
 		}
@@ -208,9 +218,9 @@ func (app *App) buildVMViews(vms []VM, leases []Lease) []VMView {
 	return out
 }
 
-func (app *App) buildUsedIPs(leases []Lease, vms []VMView) []BridgeUsedIPs {
+func buildUsedIPs(cfg *Config, leases []Lease, vms []VMView) []BridgeUsedIPs {
 	bridgeBySubnet := make(map[string]*BridgeUsedIPs)
-	for _, b := range app.cfg.Bridges {
+	for _, b := range cfg.Bridges {
 		bridgeBySubnet[b.Name] = &BridgeUsedIPs{Bridge: b.Name, Subnet: b.Subnet}
 		// Track gateway as used.
 		if b.GatewayIP != "" {
@@ -237,7 +247,7 @@ func (app *App) buildUsedIPs(leases []Lease, vms []VMView) []BridgeUsedIPs {
 		if ip == nil {
 			continue
 		}
-		for _, b := range app.cfg.Bridges {
+		for _, b := range cfg.Bridges {
 			_, ipnet, err := net.ParseCIDR(b.Subnet)
 			if err != nil {
 				continue
@@ -260,7 +270,7 @@ func (app *App) buildUsedIPs(leases []Lease, vms []VMView) []BridgeUsedIPs {
 				if ip4 == nil {
 					continue
 				}
-				for _, b := range app.cfg.Bridges {
+				for _, b := range cfg.Bridges {
 					_, ipnet, err := net.ParseCIDR(b.Subnet)
 					if err != nil {
 						continue
@@ -280,7 +290,7 @@ func (app *App) buildUsedIPs(leases []Lease, vms []VMView) []BridgeUsedIPs {
 	}
 
 	var out []BridgeUsedIPs
-	for _, b := range app.cfg.Bridges {
+	for _, b := range cfg.Bridges {
 		entry := bridgeBySubnet[b.Name]
 		if entry == nil {
 			continue
@@ -311,4 +321,69 @@ func validateNetKey(key string) error {
 		return fmt.Errorf("invalid net key")
 	}
 	return nil
+}
+
+func buildBridgeIPLists(cfg *Config, vms []VMView) []BridgeIPList {
+	// Only include bridges that PNAT manages (cfg.Bridges), since forwards are scoped to those subnets.
+	bridgeSet := map[string]struct{}{}
+	for _, b := range cfg.Bridges {
+		bridgeSet[b.Name] = struct{}{}
+	}
+
+	type key struct {
+		bridge string
+		ip     string
+	}
+	seen := map[key]bool{}
+	optsByBridge := map[string][]BridgeIPOption{}
+
+	for _, vm := range vms {
+		for _, nic := range vm.NICs {
+			if nic.Bridge == "" {
+				continue
+			}
+			if _, ok := bridgeSet[nic.Bridge]; !ok {
+				continue
+			}
+
+			var ips []string
+			if nic.LeaseIP != "" {
+				ips = append(ips, nic.LeaseIP)
+			}
+			for _, ip := range nic.IPs {
+				ip = strings.TrimSpace(ip)
+				if ip == "" {
+					continue
+				}
+				ip = strings.Split(ip, "/")[0]
+				ips = append(ips, ip)
+			}
+
+			for _, ip := range ips {
+				ip4 := net.ParseIP(ip).To4()
+				if ip4 == nil {
+					continue
+				}
+				k := key{bridge: nic.Bridge, ip: ip4.String()}
+				if seen[k] {
+					continue
+				}
+				seen[k] = true
+
+				label := fmt.Sprintf("%d %s (%s)", vm.VMID, vm.Name, nic.Key)
+				optsByBridge[nic.Bridge] = append(optsByBridge[nic.Bridge], BridgeIPOption{
+					IP:    ip4.String(),
+					Label: label,
+				})
+			}
+		}
+	}
+
+	var out []BridgeIPList
+	for bridge, opts := range optsByBridge {
+		sort.Slice(opts, func(i, j int) bool { return opts[i].IP < opts[j].IP })
+		out = append(out, BridgeIPList{Bridge: bridge, Options: opts})
+	}
+	sort.Slice(out, func(i, j int) bool { return out[i].Bridge < out[j].Bridge })
+	return out
 }

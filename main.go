@@ -41,9 +41,23 @@ func main() {
 	flag.Parse()
 
 	args := flag.Args()
+	// UX: if run with no args in an interactive terminal, default to TUI.
+	// Keep existing "serve by default" behavior for non-tty contexts (systemd, cron, pipes).
+	if len(args) == 0 && isInteractiveTerminal() {
+		runTUI(*configPath)
+		return
+	}
 	if len(args) > 0 && args[0] == "init" {
 		runInit(*configPath)
 		return
+	}
+	if len(args) > 0 && args[0] == "tui" {
+		runTUI(*configPath)
+		return
+	}
+	if len(args) > 0 && (args[0] == "serve" || args[0] == "web") {
+		// Explicit web mode (useful when running from a terminal).
+		args = args[1:]
 	}
 
 	if len(args) > 0 && args[0] == "version" {
@@ -144,6 +158,22 @@ func main() {
 		log.Printf("ERROR: server error: %v", err)
 		os.Exit(1)
 	}
+}
+
+func isInteractiveTerminal() bool {
+	// Best-effort check without external deps.
+	// systemd typically connects stdin/stdout to non-tty streams.
+	if strings.TrimSpace(os.Getenv("TERM")) == "" {
+		return false
+	}
+	isTTY := func(f *os.File) bool {
+		fi, err := f.Stat()
+		if err != nil {
+			return false
+		}
+		return (fi.Mode() & os.ModeCharDevice) != 0
+	}
+	return isTTY(os.Stdin) && isTTY(os.Stdout)
 }
 
 func runInit(configPath string) {

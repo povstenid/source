@@ -5,7 +5,7 @@ Wants=network-online.target
 
 [Service]
 Type=simple
-ExecStart=/usr/local/bin/pnat -config /etc/pnat/pnat.json
+ExecStart=/usr/local/bin/pnat -config /etc/pnat/pnat.json serve
 Restart=on-failure
 RestartSec=10
 RuntimeDirectory=pnat

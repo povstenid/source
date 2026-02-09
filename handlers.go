@@ -138,8 +138,8 @@ func (app *App) HandleDashboard(w http.ResponseWriter, r *http.Request) {
 	proxmoxBridges := app.buildBridgeViews()
 	uplinks := app.buildUplinkViews()
 	leases, _ := app.dnsmasq.Leases()
-	vmViews := app.buildVMViews(vms, leases)
-	usedIPs := app.buildUsedIPs(leases, vmViews)
+	vmViews := buildVMViews(app.proxmox, vms, leases)
+	usedIPs := buildUsedIPs(app.cfg, leases, vmViews)
 	attachable := make([]BridgeView, 0, len(proxmoxBridges))
 	for _, b := range proxmoxBridges {
 		if !b.Managed && b.HasCIDR {
@@ -203,10 +203,16 @@ func (app *App) HandleForwardsList(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
+	leases, _ := app.dnsmasq.Leases()
+	vms, _ := app.proxmox.ListVMs()
+	vmViews := buildVMViews(app.proxmox, vms, leases)
+	bridgeIPLists := buildBridgeIPLists(app.cfg, vmViews)
+
 	app.render(w, "forwards.html", map[string]any{
-		"Active":   "forwards",
-		"Bridges":  app.cfg.Bridges,
-		"Forwards": forwards,
+		"Active":        "forwards",
+		"Bridges":       app.cfg.Bridges,
+		"Forwards":      forwards,
+		"BridgeIPLists": bridgeIPLists,
 	})
 }
 

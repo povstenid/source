@@ -13,12 +13,13 @@
 
 ## Архитектура
 
-- Один бинарник на Go, без внешних зависимостей кроме `golang.org/x/crypto`
+- Один бинарник на Go (все HTML/CSS встроено через `embed.FS`)
 - Работает как systemd-сервис на хосте Proxmox
 - Все правила nftables в изолированной таблице `ip pnat` — не конфликтует с proxmox-firewall
 - DHCP через отдельный экземпляр dnsmasq (`pnat-dnsmasq.service`)
 - Конфиг — один JSON файл `/etc/pnat/pnat.json`
 - HTML шаблоны и CSS встроены в бинарник через `embed.FS`
+- Авторизация PAM использует CGO и системную библиотеку PAM (через `libpam`)
 
 ## Управление сетями Proxmox
 
@@ -84,6 +85,21 @@ ssh root@proxmox "systemctl daemon-reload && systemctl enable --now pnat"
 ```bash
 ssh -L 9090:127.0.0.1:9090 root@proxmox
 # Открыть http://localhost:9090
+```
+
+## Консольный интерфейс (TUI)
+
+Если запустить `pnat` в интерактивном терминале без аргументов, откроется псевдографический интерфейс.
+
+```bash
+pnat
+```
+
+Явные режимы:
+
+```bash
+pnat tui     # принудительно открыть TUI
+pnat serve   # запустить веб-сервер (аналог systemd режима)
 ```
 
 ## Структура конфига
