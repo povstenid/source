@@ -1,0 +1,23 @@
+# Go build artifacts
+*.exe
+*.out
+*.test
+*.prof
+
+# Project binaries
+/pnat
+/pnat.exe
+
+# Local config and runtime files
+/pnat.json
+/etc/pnat/pnat.json
+/run/pnat/
+/var/lib/pnat/
+
+# IDE/editor
+.vscode/
+.idea/
+
+# OS files
+.DS_Store
+Thumbs.db
