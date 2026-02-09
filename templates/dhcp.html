@@ -1,0 +1,65 @@
+{{define "content"}}
+<h1>DHCP</h1>
+
+<section>
+    <h2>Bridge DHCP Settings</h2>
+    {{if .Bridges}}
+    <table>
+        <thead>
+            <tr>
+                <th>Bridge</th>
+                <th>Subnet</th>
+                <th>DHCP Range</th>
+                <th>Lease Time</th>
+                <th>DNS</th>
+                <th>Actions</th>
+            </tr>
+        </thead>
+        <tbody>
+            {{range .Bridges}}
+            <tr>
+                <td>{{.Name}}</td>
+                <td>{{.Subnet}}</td>
+                {{if .DHCP}}
+                <td>{{.DHCP.RangeStart}} - {{.DHCP.RangeEnd}}</td>
+                <td>{{.DHCP.LeaseTime}}</td>
+                <td>{{.DHCP.DNS1}}{{if .DHCP.DNS2}}, {{.DHCP.DNS2}}{{end}}</td>
+                {{else}}
+                <td colspan="3"><em>disabled</em></td>
+                {{end}}
+                <td><a href="/dhcp/edit/{{.Name}}">Configure</a></td>
+            </tr>
+            {{end}}
+        </tbody>
+    </table>
+    {{else}}
+    <p>No bridges configured.</p>
+    {{end}}
+</section>
+
+{{if .Leases}}
+<section>
+    <h2>Active Leases</h2>
+    <table>
+        <thead>
+            <tr>
+                <th>MAC</th>
+                <th>IP</th>
+                <th>Hostname</th>
+                <th>Expires</th>
+            </tr>
+        </thead>
+        <tbody>
+            {{range .Leases}}
+            <tr>
+                <td>{{.MAC}}</td>
+                <td>{{.IP}}</td>
+                <td>{{.Hostname}}</td>
+                <td>{{.Timestamp}}</td>
+            </tr>
+            {{end}}
+        </tbody>
+    </table>
+</section>
+{{end}}
+{{end}}

@@ -1,0 +1,15 @@
+# PAM configuration for PNAT
+#
+# Install to: /etc/pam.d/pnat
+# Then set in config: "auth_mode": "pam", "auth_pam_service": "pnat"
+#
+# This uses the system's common auth/account/session stacks.
+# Debian/Proxmox typically provide these as:
+#   /etc/pam.d/common-auth
+#   /etc/pam.d/common-account
+#   /etc/pam.d/common-session
+
+auth      include common-auth
+account   include common-account
+session   include common-session
+

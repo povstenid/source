@@ -1,0 +1,89 @@
+{{define "content"}}
+<h1>Port Forwards</h1>
+
+<section>
+    <h2>Add Forward</h2>
+    <form method="POST" action="/forwards/add" class="form-inline">
+        <label>Bridge
+            <select name="bridge" required>
+                {{range .Bridges}}
+                <option value="{{.Name}}">{{.Name}} ({{.Subnet}})</option>
+                {{end}}
+            </select>
+        </label>
+        <label>Protocol
+            <select name="protocol">
+                <option value="tcp">TCP</option>
+                <option value="udp">UDP</option>
+                <option value="tcp+udp">TCP+UDP</option>
+            </select>
+        </label>
+        <label>External Port
+            <input type="number" name="ext_port" min="1" max="65535" required>
+        </label>
+        <label>Internal IP
+            <input type="text" name="int_ip" placeholder="10.10.10.101" list="suggest-int-ip" pattern="(?:[0-9]{1,3}[.]){3}[0-9]{1,3}" title="IPv4 address" required>
+        </label>
+        <label>Internal Port
+            <input type="number" name="int_port" min="1" max="65535" required>
+        </label>
+        <label>Comment
+            <input type="text" name="comment" placeholder="optional">
+        </label>
+        <button type="submit">Add</button>
+    </form>
+    <datalist id="suggest-int-ip">
+        <option value="10.10.10.101">
+        <option value="10.10.10.102">
+        <option value="192.168.10.101">
+    </datalist>
+</section>
+
+<section>
+    <h2>Current Rules</h2>
+    {{if .Forwards}}
+    <table>
+        <thead>
+            <tr>
+                <th>Bridge</th>
+                <th>Protocol</th>
+                <th>Ext Port</th>
+                <th>Int IP:Port</th>
+                <th>Comment</th>
+                <th>Enabled</th>
+                <th>Actions</th>
+            </tr>
+        </thead>
+        <tbody>
+            {{range .Forwards}}
+            <tr>
+                <td>{{.Bridge}}</td>
+                <td>{{.Protocol}}</td>
+                <td>{{.ExtPort}}</td>
+                <td>{{.IntIP}}:{{.IntPort}}</td>
+                <td>{{.Comment}}</td>
+                <td>
+                    <form method="POST" action="/forwards/toggle" style="display:inline">
+                        <input type="hidden" name="id" value="{{.ID}}">
+                        {{if .Enabled}}
+                        <button type="submit" class="btn-on btn-sm">ON</button>
+                        {{else}}
+                        <button type="submit" class="btn-off btn-sm">OFF</button>
+                        {{end}}
+                    </form>
+                </td>
+                <td>
+                    <form method="POST" action="/forwards/delete" style="display:inline">
+                        <input type="hidden" name="id" value="{{.ID}}">
+                        <button type="submit" class="btn-danger btn-sm" onclick="return confirm('Delete this forward?')">Delete</button>
+                    </form>
+                </td>
+            </tr>
+            {{end}}
+        </tbody>
+    </table>
+    {{else}}
+    <p>No port forwards configured.</p>
+    {{end}}
+</section>
+{{end}}

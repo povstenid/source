@@ -1,0 +1,21 @@
+{
+  "listen_addr": "127.0.0.1:9090",
+  "auth_mode": "pam",
+  "auth_pam_service": "pnat",
+  "auth_allow_users": ["root"],
+  "session_secret": "REPLACE_WITH_64_HEX_CHARS",
+  "proxmox_url": "https://127.0.0.1:8006",
+  "proxmox_token_id": "root@pam!pnat",
+  "proxmox_secret": "REPLACE_WITH_TOKEN_UUID",
+  "proxmox_node": "pve",
+  "wan_interface": "vmbr0",
+  "bridges": [
+    {
+      "name": "vmbr1",
+      "subnet": "10.10.10.0/24",
+      "gateway_ip": "10.10.10.1",
+      "nat_enabled": false,
+      "forwards": []
+    }
+  ]
+}

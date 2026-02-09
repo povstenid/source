@@ -1,0 +1,32 @@
+{{define "layout"}}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>PNAT{{if .Title}} - {{.Title}}{{end}}</title>
+    <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+    {{if .LoggedIn}}
+    <nav>
+        <div class="nav-brand">PNAT</div>
+        <div class="nav-links">
+            <a href="/"{{if eq .Active "dashboard"}} class="active"{{end}}>Dashboard</a>
+            <a href="/forwards"{{if eq .Active "forwards"}} class="active"{{end}}>Port Forwards</a>
+            <a href="/dhcp"{{if eq .Active "dhcp"}} class="active"{{end}}>DHCP</a>
+        </div>
+        <form method="POST" action="/logout" class="nav-logout">
+            <button type="submit">Logout</button>
+        </form>
+    </nav>
+    {{end}}
+    <main>
+        {{if .Flash}}
+        <div class="flash {{.FlashType}}">{{.Flash}}</div>
+        {{end}}
+        {{template "content" .}}
+    </main>
+</body>
+</html>
+{{end}}

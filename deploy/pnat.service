@@ -1,0 +1,15 @@
+[Unit]
+Description=PNAT - Proxmox NAT Manager
+After=network-online.target proxmox-firewall.service
+Wants=network-online.target
+
+[Service]
+Type=simple
+ExecStart=/usr/local/bin/pnat -config /etc/pnat/pnat.json
+Restart=on-failure
+RestartSec=10
+RuntimeDirectory=pnat
+StateDirectory=pnat
+
+[Install]
+WantedBy=multi-user.target
