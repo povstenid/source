@@ -11,6 +11,7 @@
                 <th>Subnet</th>
                 <th>Gateway</th>
                 <th>NAT</th>
+                <th>Hairpin NAT</th>
                 <th>DHCP</th>
                 <th>Forwards</th>
             </tr>
@@ -25,6 +26,16 @@
                     <form method="POST" action="/nat/toggle" style="display:inline">
                         <input type="hidden" name="bridge" value="{{.Name}}">
                         {{if .NATEnabled}}
+                        <button type="submit" class="btn-on" title="Click to disable">ON</button>
+                        {{else}}
+                        <button type="submit" class="btn-off" title="Click to enable">OFF</button>
+                        {{end}}
+                    </form>
+                </td>
+                <td>
+                    <form method="POST" action="/hairpin/toggle" style="display:inline">
+                        <input type="hidden" name="bridge" value="{{.Name}}">
+                        {{if .HairpinNATEnabled}}
                         <button type="submit" class="btn-on" title="Click to disable">ON</button>
                         {{else}}
                         <button type="submit" class="btn-off" title="Click to enable">OFF</button>
@@ -71,6 +82,11 @@
         <label>
             <input type="checkbox" name="nat_enabled" value="1">
             Enable NAT
+        </label>
+        <label>
+            <input type="hidden" name="hairpin_nat_enabled" value="0">
+            <input type="checkbox" name="hairpin_nat_enabled" value="1" checked>
+            Hairpin NAT (internal->external IP)
         </label>
         <label>
             <input type="checkbox" name="dhcp_enabled" value="1">
@@ -167,6 +183,11 @@
             Enable NAT
         </label>
         <label>
+            <input type="hidden" name="hairpin_nat_enabled" value="0">
+            <input type="checkbox" name="hairpin_nat_enabled" value="1" checked>
+            Hairpin NAT (internal->external IP)
+        </label>
+        <label>
             <input type="checkbox" name="dhcp_enabled" value="1">
             Enable DHCP
         </label>
@@ -257,7 +278,17 @@
                                 {{if .LeaseIP}}
                                     <span>(lease: <code>{{.LeaseIP}}</code>{{if .LeaseHost}} {{.LeaseHost}}{{end}})</span>
                                 {{end}}
+                                {{if eq $vm.Type "qemu"}}
+                                    {{if .AgentIPs}}
+                                        <span>(agent: {{range .AgentIPs}}<code>{{.}}</code> {{end}})</span>
+                                    {{else}}
+                                        <span>(agent: -)</span>
+                                    {{end}}
+                                {{end}}
                             </div>
+                        {{end}}
+                        {{if and (eq $vm.Type "qemu") $vm.Agent}}
+                            <div><em>agent: {{$vm.Agent}}</em></div>
                         {{end}}
                     {{else}}
                         -

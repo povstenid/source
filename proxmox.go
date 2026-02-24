@@ -140,6 +140,20 @@ type ProxmoxNetwork struct {
 	Autostart   int    `json:"autostart"`
 }
 
+// AgentInterface describes an interface returned by the QEMU guest agent.
+type AgentInterface struct {
+	Name            string    `json:"name"`
+	HardwareAddress string    `json:"hardware-address"`
+	IPAddresses     []AgentIP `json:"ip-addresses"`
+}
+
+// AgentIP describes an IP address returned by the QEMU guest agent.
+type AgentIP struct {
+	Address string `json:"ip-address"`
+	Type    string `json:"ip-address-type"`
+	Prefix  int    `json:"prefix"`
+}
+
 // ListNetworks returns all network interfaces on the node.
 func (p *ProxmoxClient) ListNetworks() ([]ProxmoxNetwork, error) {
 	if p.baseURL == "" || p.tokenID == "" {
@@ -158,6 +172,37 @@ func (p *ProxmoxClient) ListNetworks() ([]ProxmoxNetwork, error) {
 		return nil, fmt.Errorf("parse network list: %w", err)
 	}
 	return resp.Data, nil
+}
+
+// GetQemuAgentInterfaces returns guest agent interfaces for a QEMU VM.
+// If the guest agent is not available, it returns an error.
+func (p *ProxmoxClient) GetQemuAgentInterfaces(vmid int) ([]AgentInterface, error) {
+	if p.baseURL == "" || p.tokenID == "" {
+		return nil, nil
+	}
+	data, err := p.doGet(fmt.Sprintf("/nodes/%s/qemu/%d/agent/network-get-interfaces", p.node, vmid))
+	if err != nil {
+		return nil, err
+	}
+
+	// Proxmox returns either {data:{result:[...]}} or {data:[...]} depending on version.
+	var withResult struct {
+		Data struct {
+			Result []AgentInterface `json:"result"`
+		} `json:"data"`
+	}
+	if err := json.Unmarshal(data, &withResult); err == nil && len(withResult.Data.Result) > 0 {
+		return withResult.Data.Result, nil
+	}
+
+	var flat struct {
+		Data []AgentInterface `json:"data"`
+	}
+	if err := json.Unmarshal(data, &flat); err == nil && len(flat.Data) > 0 {
+		return flat.Data, nil
+	}
+
+	return nil, fmt.Errorf("no agent interfaces")
 }
 
 // CreateBridge creates a Linux bridge on the node via the Proxmox API.

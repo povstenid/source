@@ -1,13 +1,36 @@
 package main
 
+import "encoding/json"
+
 // BridgeConfig describes a managed network bridge with NAT, DHCP, and port forwarding.
 type BridgeConfig struct {
-	Name       string        `json:"name"`
-	Subnet     string        `json:"subnet"`
-	GatewayIP  string        `json:"gateway_ip"`
-	NATEnabled bool          `json:"nat_enabled"`
-	DHCP       *DHCPConfig   `json:"dhcp,omitempty"`
-	Forwards   []PortForward `json:"forwards,omitempty"`
+	Name              string        `json:"name"`
+	Subnet            string        `json:"subnet"`
+	GatewayIP         string        `json:"gateway_ip"`
+	NATEnabled        bool          `json:"nat_enabled"`
+	HairpinNATEnabled bool          `json:"hairpin_nat_enabled"`
+	DHCP              *DHCPConfig   `json:"dhcp,omitempty"`
+	Forwards          []PortForward `json:"forwards,omitempty"`
+}
+
+// UnmarshalJSON keeps backward compatibility for older configs:
+// if hairpin_nat_enabled is absent, default to true.
+func (b *BridgeConfig) UnmarshalJSON(data []byte) error {
+	type alias BridgeConfig
+	var raw struct {
+		alias
+		HairpinNATEnabled *bool `json:"hairpin_nat_enabled"`
+	}
+	if err := json.Unmarshal(data, &raw); err != nil {
+		return err
+	}
+	*b = BridgeConfig(raw.alias)
+	if raw.HairpinNATEnabled == nil {
+		b.HairpinNATEnabled = true
+	} else {
+		b.HairpinNATEnabled = *raw.HairpinNATEnabled
+	}
+	return nil
 }
 
 // DHCPConfig describes a basic DHCP pool for a bridge.

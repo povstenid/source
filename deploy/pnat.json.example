@@ -15,6 +15,7 @@
       "subnet": "10.10.10.0/24",
       "gateway_ip": "10.10.10.1",
       "nat_enabled": false,
+      "hairpin_nat_enabled": true,
       "forwards": []
     }
   ]

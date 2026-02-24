@@ -188,7 +188,7 @@ func (m *TUIMode) dashboardPage() tview.Primitive {
 	box := tview.NewFlex().SetDirection(tview.FlexRow)
 
 	bridges := tview.NewTable().SetBorders(false)
-	bridges.SetTitle("Bridges (t=toggle NAT, d=edit DHCP)").SetBorder(true)
+	bridges.SetTitle("Bridges (t=toggle NAT, h=toggle Hairpin, d=edit DHCP)").SetBorder(true)
 	bridges.SetFixed(1, 0)
 	bridges.SetSelectable(true, false)
 	bridges.Select(1, 0)
@@ -202,8 +202,9 @@ func (m *TUIMode) dashboardPage() tview.Primitive {
 	setCell(0, 1, "Subnet", tcell.ColorYellow)
 	setCell(0, 2, "Gateway", tcell.ColorYellow)
 	setCell(0, 3, "NAT", tcell.ColorYellow)
-	setCell(0, 4, "DHCP", tcell.ColorYellow)
-	setCell(0, 5, "Forwards", tcell.ColorYellow)
+	setCell(0, 4, "Hairpin", tcell.ColorYellow)
+	setCell(0, 5, "DHCP", tcell.ColorYellow)
+	setCell(0, 6, "Forwards", tcell.ColorYellow)
 
 	for i, b := range m.cfg.Bridges {
 		r := i + 1
@@ -215,12 +216,17 @@ func (m *TUIMode) dashboardPage() tview.Primitive {
 		} else {
 			setCell(r, 3, "OFF", tcell.ColorGray)
 		}
-		if b.DHCP != nil {
-			setCell(r, 4, fmt.Sprintf("%s-%s", b.DHCP.RangeStart, b.DHCP.RangeEnd), tcell.ColorGreen)
+		if b.HairpinNATEnabled {
+			setCell(r, 4, "ON", tcell.ColorGreen)
 		} else {
-			setCell(r, 4, "disabled", tcell.ColorGray)
+			setCell(r, 4, "OFF", tcell.ColorGray)
 		}
-		setCell(r, 5, strconv.Itoa(len(b.Forwards)), tcell.ColorWhite)
+		if b.DHCP != nil {
+			setCell(r, 5, fmt.Sprintf("%s-%s", b.DHCP.RangeStart, b.DHCP.RangeEnd), tcell.ColorGreen)
+		} else {
+			setCell(r, 5, "disabled", tcell.ColorGray)
+		}
+		setCell(r, 6, strconv.Itoa(len(b.Forwards)), tcell.ColorWhite)
 	}
 
 	bridges.SetInputCapture(func(ev *tcell.EventKey) *tcell.EventKey {
@@ -235,6 +241,21 @@ func (m *TUIMode) dashboardPage() tview.Primitive {
 			br := m.cfg.FindBridge(name)
 			if br != nil {
 				br.NATEnabled = !br.NATEnabled
+			}
+			m.cfg.Unlock()
+			if err := m.apply(); err != nil {
+				m.footer.SetText(fmt.Sprintf("[red]apply failed:[-] %v", err))
+			} else {
+				_ = m.refresh()
+				m.redrawAll()
+			}
+			return nil
+		case 'h':
+			name := m.cfg.Bridges[row-1].Name
+			m.cfg.Lock()
+			br := m.cfg.FindBridge(name)
+			if br != nil {
+				br.HairpinNATEnabled = !br.HairpinNATEnabled
 			}
 			m.cfg.Unlock()
 			if err := m.apply(); err != nil {

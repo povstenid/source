@@ -51,6 +51,8 @@ func (app *App) SetupRoutes(mux *http.ServeMux) {
 			app.HandleLogout(w, r)
 		case path == "/nat/toggle" && r.Method == http.MethodPost:
 			app.HandleNATToggle(w, r)
+		case path == "/hairpin/toggle" && r.Method == http.MethodPost:
+			app.HandleHairpinToggle(w, r)
 		case path == "/forwards" && r.Method == http.MethodGet:
 			app.HandleForwardsList(w, r)
 		case path == "/forwards/add" && r.Method == http.MethodPost:
@@ -112,6 +114,9 @@ func (app *App) render(w http.ResponseWriter, name string, data map[string]any) 
 		}
 	}
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
+	// Avoid stale HTML when deploying a new embedded binary.
+	w.Header().Set("Cache-Control", "no-store")
+	w.Header().Set("Pragma", "no-cache")
 	tmpl, ok := app.templates[name]
 	if !ok {
 		http.Error(w, "Template not found", http.StatusInternalServerError)
@@ -176,6 +181,30 @@ func (app *App) HandleNATToggle(w http.ResponseWriter, r *http.Request) {
 	}
 
 	br.NATEnabled = !br.NATEnabled
+
+	if err := app.cfg.Save(); err != nil {
+		log.Printf("ERROR: save config: %v", err)
+	}
+	if err := app.nft.Apply(app.cfg); err != nil {
+		log.Printf("ERROR: apply nftables: %v", err)
+	}
+
+	http.Redirect(w, r, "/", http.StatusSeeOther)
+}
+
+func (app *App) HandleHairpinToggle(w http.ResponseWriter, r *http.Request) {
+	bridgeName := r.FormValue("bridge")
+
+	app.cfg.Lock()
+	defer app.cfg.Unlock()
+
+	br := app.cfg.FindBridge(bridgeName)
+	if br == nil {
+		http.Error(w, "Bridge not found", http.StatusBadRequest)
+		return
+	}
+
+	br.HairpinNATEnabled = !br.HairpinNATEnabled
 
 	if err := app.cfg.Save(); err != nil {
 		log.Printf("ERROR: save config: %v", err)
@@ -430,6 +459,10 @@ func (app *App) HandleBridgeCreate(w http.ResponseWriter, r *http.Request) {
 	subnet := strings.TrimSpace(r.FormValue("subnet"))
 	gateway := strings.TrimSpace(r.FormValue("gateway_ip"))
 	natEnabled := r.FormValue("nat_enabled") == "1"
+	hairpinEnabled := true
+	if v := r.FormValue("hairpin_nat_enabled"); v != "" {
+		hairpinEnabled = v == "1"
+	}
 	bridgePorts := strings.TrimSpace(r.FormValue("bridge_ports"))
 	dhcpEnabled := r.FormValue("dhcp_enabled") == "1"
 	rangeStart := strings.TrimSpace(r.FormValue("range_start"))
@@ -521,10 +554,11 @@ func (app *App) HandleBridgeCreate(w http.ResponseWriter, r *http.Request) {
 
 	app.cfg.Lock()
 	br := BridgeConfig{
-		Name:       name,
-		Subnet:     subnet,
-		GatewayIP:  gateway,
-		NATEnabled: natEnabled,
+		Name:              name,
+		Subnet:            subnet,
+		GatewayIP:         gateway,
+		NATEnabled:        natEnabled,
+		HairpinNATEnabled: hairpinEnabled,
 	}
 	if dhcpEnabled {
 		br.DHCP = &DHCPConfig{
@@ -561,6 +595,10 @@ func (app *App) HandleBridgeAttach(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	natEnabled := r.FormValue("nat_enabled") == "1"
+	hairpinEnabled := true
+	if v := r.FormValue("hairpin_nat_enabled"); v != "" {
+		hairpinEnabled = v == "1"
+	}
 	dhcpEnabled := r.FormValue("dhcp_enabled") == "1"
 	rangeStart := strings.TrimSpace(r.FormValue("range_start"))
 	rangeEnd := strings.TrimSpace(r.FormValue("range_end"))
@@ -641,10 +679,11 @@ func (app *App) HandleBridgeAttach(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	br := BridgeConfig{
-		Name:       name,
-		Subnet:     subnet,
-		GatewayIP:  ipv4.String(),
-		NATEnabled: natEnabled,
+		Name:              name,
+		Subnet:            subnet,
+		GatewayIP:         ipv4.String(),
+		NATEnabled:        natEnabled,
+		HairpinNATEnabled: hairpinEnabled,
 	}
 	if dhcpEnabled {
 		br.DHCP = &DHCPConfig{

@@ -17,6 +17,7 @@ type VMNICView struct {
 	IPs       []string
 	LeaseIP   string
 	LeaseHost string
+	AgentIPs  []string
 }
 
 type VMView struct {
@@ -25,6 +26,7 @@ type VMView struct {
 	Type   string
 	Status string
 	NICs   []VMNICView
+	Agent  string
 }
 
 type UsedIP struct {
@@ -54,7 +56,18 @@ type BridgeIPList struct {
 var netKeyRe = regexp.MustCompile(`^net[0-9]+$`)
 
 func normalizeMAC(s string) string {
-	return strings.ToLower(strings.TrimSpace(s))
+	s = strings.ToLower(strings.TrimSpace(s))
+	var b strings.Builder
+	for _, r := range s {
+		if (r >= '0' && r <= '9') || (r >= 'a' && r <= 'f') {
+			b.WriteRune(r)
+		}
+	}
+	v := b.String()
+	if len(v) != 12 {
+		return v
+	}
+	return fmt.Sprintf("%s:%s:%s:%s:%s:%s", v[0:2], v[2:4], v[4:6], v[6:8], v[8:10], v[10:12])
 }
 
 func splitCommaKV(s string) []string {
@@ -186,6 +199,18 @@ func buildVMViews(px *ProxmoxClient, vms []VM, leases []Lease) []VMView {
 		if err != nil {
 			log.Printf("WARN: failed to get VM config %s/%d: %v", vm.Type, vm.VMID, err)
 		}
+		agentIPs := map[string][]string{}
+		if vm.Type == "qemu" {
+			ifs, err := px.GetQemuAgentInterfaces(vm.VMID)
+			if err == nil {
+				agentIPs = agentIPsByMAC(ifs)
+				if len(agentIPs) == 0 {
+					view.Agent = "no data"
+				}
+			} else {
+				view.Agent = err.Error()
+			}
+		}
 		for k, v := range cfg {
 			if !netKeyRe.MatchString(k) {
 				continue
@@ -208,6 +233,10 @@ func buildVMViews(px *ProxmoxClient, vms []VM, leases []Lease) []VMView {
 						nic.IPs = append(nic.IPs, l.IP)
 					}
 				}
+				if ips := agentIPs[normalizeMAC(nic.MAC)]; len(ips) > 0 {
+					nic.AgentIPs = appendUniqueIPs(nic.AgentIPs, ips)
+					nic.IPs = appendUniqueIPs(nic.IPs, ips)
+				}
 			}
 			view.NICs = append(view.NICs, nic)
 		}
@@ -216,6 +245,55 @@ func buildVMViews(px *ProxmoxClient, vms []VM, leases []Lease) []VMView {
 	}
 	sort.Slice(out, func(i, j int) bool { return out[i].VMID < out[j].VMID })
 	return out
+}
+
+func agentIPsByMAC(ifs []AgentInterface) map[string][]string {
+	out := make(map[string][]string, len(ifs))
+	for _, iface := range ifs {
+		mac := normalizeMAC(iface.HardwareAddress)
+		if mac == "" {
+			continue
+		}
+		for _, ip := range iface.IPAddresses {
+			if ip.Address == "" {
+				continue
+			}
+			parsed := net.ParseIP(ip.Address)
+			if parsed == nil || parsed.To4() == nil {
+				continue
+			}
+			if parsed.IsLoopback() || parsed.IsLinkLocalUnicast() {
+				continue
+			}
+			addr := ip.Address
+			if ip.Prefix > 0 {
+				addr = fmt.Sprintf("%s/%d", ip.Address, ip.Prefix)
+			}
+			out[mac] = appendUniqueIPs(out[mac], []string{addr})
+		}
+	}
+	return out
+}
+
+func appendUniqueIPs(dst []string, src []string) []string {
+	if len(src) == 0 {
+		return dst
+	}
+	seen := make(map[string]struct{}, len(dst)+len(src))
+	for _, v := range dst {
+		seen[v] = struct{}{}
+	}
+	for _, v := range src {
+		if v == "" {
+			continue
+		}
+		if _, ok := seen[v]; ok {
+			continue
+		}
+		seen[v] = struct{}{}
+		dst = append(dst, v)
+	}
+	return dst
 }
 
 func buildUsedIPs(cfg *Config, leases []Lease, vms []VMView) []BridgeUsedIPs {

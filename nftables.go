@@ -137,6 +137,14 @@ func (n *NFTManager) generateRuleset(cfg *Config) string {
 					"        iifname %q %s dport %d dnat to %s:%d%s\n",
 					cfg.WanInterface, proto, f.ExtPort, f.IntIP, f.IntPort, comment,
 				))
+				if b.HairpinNATEnabled {
+					// Hairpin NAT: allow internal clients to access forwarded services
+					// via host's local/external IPs.
+					sb.WriteString(fmt.Sprintf(
+						"        iifname %q fib daddr type local %s dport %d dnat to %s:%d%s\n",
+						b.Name, proto, f.ExtPort, f.IntIP, f.IntPort, comment,
+					))
+				}
 			}
 		}
 	}
@@ -154,6 +162,24 @@ func (n *NFTManager) generateRuleset(cfg *Config) string {
 			"        oifname %q ip saddr %s masquerade\n",
 			cfg.WanInterface, b.Subnet,
 		))
+
+	}
+
+	for _, b := range cfg.Bridges {
+		if !b.HairpinNATEnabled {
+			continue
+		}
+		// Hairpin SNAT: keep return path symmetric when both client and
+		// destination are behind the same bridge.
+		for _, f := range b.Forwards {
+			if !f.Enabled {
+				continue
+			}
+			sb.WriteString(fmt.Sprintf(
+				"        iifname %q oifname %q ip saddr %s ip daddr %s masquerade\n",
+				b.Name, b.Name, b.Subnet, f.IntIP,
+			))
+		}
 	}
 	sb.WriteString("    }\n")
 	sb.WriteString("}\n")
